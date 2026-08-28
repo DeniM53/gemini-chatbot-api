@@ -3,6 +3,16 @@ const input = document.getElementById('user-input');
 const chatBox = document.getElementById('chat-box');
 const themeToggleBtn = document.getElementById('theme-toggle');
 
+const uploadBtn = document.getElementById('upload-btn');
+const imageInput = document.getElementById('image-input');
+const imagePreviewWrapper = document.getElementById('image-preview-wrapper');
+const imagePreview = document.getElementById('image-preview');
+const clearImageBtn = document.getElementById('clear-image-btn');
+
+let selectedImageBase64 = null;
+let selectedImageMimeType = null;
+let selectedImageDataUrl = null;
+
 // Load and apply saved theme preference
 const savedTheme = localStorage.getItem('theme');
 if (savedTheme === 'dark') {
@@ -19,6 +29,56 @@ if (themeToggleBtn) {
   });
 }
 
+// Trigger file input when upload button is clicked
+if (uploadBtn && imageInput) {
+  uploadBtn.addEventListener('click', () => {
+    imageInput.click();
+  });
+}
+
+// Handle image selection
+if (imageInput) {
+  imageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      selectedImageDataUrl = event.target.result;
+
+      // Extract base64 and mime type
+      const matches = selectedImageDataUrl.match(/^data:(image\/[a-zA-Z+-\.]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        selectedImageMimeType = matches[1];
+        selectedImageBase64 = matches[2];
+
+        // Update UI preview
+        if (imagePreview && imagePreviewWrapper) {
+          imagePreview.src = selectedImageDataUrl;
+          imagePreviewWrapper.style.display = 'flex';
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Clear selected image
+if (clearImageBtn) {
+  clearImageBtn.addEventListener('click', () => {
+    clearImageSelection();
+  });
+}
+
+function clearImageSelection() {
+  if (imageInput) imageInput.value = '';
+  selectedImageBase64 = null;
+  selectedImageMimeType = null;
+  selectedImageDataUrl = null;
+  if (imagePreview) imagePreview.src = '';
+  if (imagePreviewWrapper) imagePreviewWrapper.style.display = 'none';
+}
+
 // Array to store the conversation history in the format expected by the backend
 const conversation = [];
 
@@ -26,14 +86,22 @@ form.addEventListener('submit', async function (e) {
   e.preventDefault();
 
   const userMessage = input.value.trim();
-  if (!userMessage) return;
+  if (!userMessage && !selectedImageBase64) return;
 
   // Add the user's message to the UI
-  appendMessage('user', userMessage);
+  appendMessage('user', userMessage, selectedImageDataUrl);
   input.value = '';
 
   // Store the message in the conversation history
-  conversation.push({ role: 'user', text: userMessage });
+  conversation.push({
+    role: 'user',
+    text: userMessage,
+    image: selectedImageBase64,
+    mimeType: selectedImageMimeType
+  });
+
+  // Clear the image selection for the next message
+  clearImageSelection();
 
   // Add temporary "Thinking..." bot message to the UI
   const thinkingMessageEl = appendMessage('bot', 'Thinking...');
@@ -81,10 +149,21 @@ form.addEventListener('submit', async function (e) {
   }
 });
 
-function appendMessage(sender, text) {
+function appendMessage(sender, text, imageDataUrl = null) {
   const msg = document.createElement('div');
   msg.classList.add('message', sender);
-  msg.textContent = text;
+
+  if (imageDataUrl) {
+    const img = document.createElement('img');
+    img.src = imageDataUrl;
+    msg.appendChild(img);
+  }
+
+  if (text) {
+    const textNode = document.createTextNode(text);
+    msg.appendChild(textNode);
+  }
+
   chatBox.appendChild(msg);
 
   // Add a clear div to properly stack the floated messages
